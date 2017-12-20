@@ -1,4 +1,4 @@
-package fxt
+package fxt4
 
 import (
 	"strings"
@@ -94,21 +94,21 @@ type FXTHeader struct {
 	ModeledBars  uint32    //  				216        4     number of modeled bars      (w/o prolog)
 	FirstBarTime uint32    //  				220        4     bar open time of first tick (w/o prolog)
 	LastBarTime  uint32    //  				224        4     bar open time of last tick  (w/o prolog)
-	Reserved_1   [4]byte   //  				228        4     (alignment to the next double)
+	Reserved1    [4]byte   //  				228        4     (alignment to the next double)
 	ModelQuality float64   //  				232        8     max. 99.9
 
 	// common parameters-----------------------------------------------------------------------------------------------------------------------
 	BaseCurrency [12]byte // 				240       12     base currency (szchar)                     = StringLeft(symbol, 3)
 	Spread       uint32   // 				252        4     spread in points: 0=zero spread            = MarketInfo(MODE_SPREAD)
 	Digits       uint32   // 				256        4     digits                                     = MarketInfo(MODE_DIGITS)
-	Reserved_2   [4]byte  // 				260        4     (alignment to the next double)
+	Reserved2    [4]byte  // 				260        4     (alignment to the next double)
 	PointSize    float64  // 				264        8     resolution, ie. 0.0000'1                   = MarketInfo(MODE_POINT)
 	MinLotsize   uint32   // 				272        4     min lot size in centi lots (hundredths)    = MarketInfo(MODE_MINLOT)  * 100
 	MaxLotsize   uint32   // 				276        4     max lot size in centi lots (hundredths)    = MarketInfo(MODE_MAXLOT)  * 100
 	LotStepsize  uint32   // 				280        4     lot stepsize in centi lots (hundredths)    = MarketInfo(MODE_LOTSTEP) * 100
 	StopsLevel   uint32   // 				284        4     orders stop distance in points             = MarketInfo(MODE_STOPLEVEL)
 	PendingsGTC  uint32   // 				288        4     close pending orders at end of day or GTC
-	Reserved_3   [4]byte  // 				292        4     (alignment to the next double)
+	Reserved3    [4]byte  // 				292        4     (alignment to the next double)
 
 	// profit calculation parameters-------------------------------------------------------------------------------------------------------------
 	ContractSize          float64 //  		296        8     ie. 100000                                 = MarketInfo(MODE_LOTSIZE)
@@ -119,7 +119,7 @@ type FXTHeader struct {
 	// swap calculation parameters -------------------------------------------------------------------------------------------------------------
 	SwapEnabled         uint32  //  		324        4     if swaps are to be applied
 	SwapCalculationMode int32   //  		328        4     0=Points|1=BaseCurrency|2=Interest|3=MarginCurrency   = MarketInfo(MODE_SWAPTYPE)
-	Reserved_4          [4]byte //  		332        4     (alignment to the next double)
+	Reserved4           [4]byte //  		332        4     (alignment to the next double)
 	SwapLongValue       float64 //  		336        8     long overnight swap value                  = MarketInfo(MODE_SWAPLONG)
 	SwapShortValue      float64 //  		344        8     short overnight swap values                = MarketInfo(MODE_SWAPSHORT)
 	TripleRolloverDay   uint32  //  		352        4     weekday of triple swaps                    = WEDNESDAY (3)
@@ -135,7 +135,7 @@ type FXTHeader struct {
 	MarginHedged              float64  // 	392        8     hedged margin requirement (in units)       = MarketInfo(MODE_MARGINHEDGED)
 	MarginDivider             float64  // 	400        8     leverage calculation                         @see example in struct SYMBOL
 	MarginCurrency            [12]byte // 	408       12                                                = AccountCurrency()
-	Reserved_5                [4]byte  // 	420        4     (alignment to the next double)
+	Reserved5                 [4]byte  // 	420        4     (alignment to the next double)
 
 	// commission calculation parameters ----------------------------------------------------------------------------------------------------------
 	CommissionValue           float64 // 	424        8     commission rate
@@ -155,14 +155,10 @@ type FXTHeader struct {
 	TesterSettingTo   uint32    //  		476        4     end date from tester settings
 	FreezeDistance    uint32    //  		480        4     order freeze level in points               = MarketInfo(MODE_FREEZELEVEL)
 	ModelErrors       uint32    //  		484        4     number of errors during model generation (FIX ERRORS SHOWING UP HERE BEFORE TESTING
-	Reserved_6        [240]byte //  		488      240     unused
+	Reserved6         [240]byte //  		488      240     unused
 }
 
-func toFixBytes(bs []byte, s string) (int, error) {
-	r := strings.NewReader(s)
-	return r.Read(bs[:])
-}
-
+// NewHeader return an predefined FXT header
 func NewHeader(version uint32, symbol string, timeframe, spread, model uint32) *FXTHeader {
 	h := &FXTHeader{
 		Version:      version,
@@ -220,4 +216,14 @@ func NewHeader(version uint32, symbol string, timeframe, spread, model uint32) *
 	toFixBytes(h.MarginCurrency[:], symbol[3:])
 
 	return h
+}
+
+// FixHeader after all ticks writed to file
+func (h *FXTHeader) FixHeader() {
+
+}
+
+func toFixBytes(bs []byte, s string) (int, error) {
+	r := strings.NewReader(s)
+	return r.Read(bs[:])
 }

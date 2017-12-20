@@ -25,8 +25,8 @@ type TickData struct {
 	Time      time.Time
 	Ask       float64
 	Bid       float64
-	VolumeAsk int64
-	VolumeBid int64
+	VolumeAsk uint64
+	VolumeBid uint64
 }
 
 func (t *TickData) ToString() []string {
@@ -53,24 +53,11 @@ func DecodeTickData(data []byte, symbol string, timeH time.Time) (*TickData, err
 	if len(data) != TICK_BYTES {
 		return nil, errors.New("invalid length for tick data")
 	}
+
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, binary.BigEndian, &raw); err != nil {
 		return nil, err
 	}
-	/*
-		if err := binary.Read(buf, binary.BigEndian, &Ask); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(buf, binary.BigEndian, &Bid); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(buf, binary.BigEndian, &VolumeAsk); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(buf, binary.BigEndian, &VolumeBid); err != nil {
-			return nil, err
-		}
-	*/
 
 	var point float64 = 100000
 	for _, sym := range normSymbols {
@@ -80,9 +67,9 @@ func DecodeTickData(data []byte, symbol string, timeH time.Time) (*TickData, err
 		}
 	}
 
-	round := func(f float64) int64 {
+	round := func(f float64) uint64 {
 		f += 0.5
-		return int64(math.Floor(f))
+		return uint64(math.Floor(f))
 	}
 
 	t := TickData{
