@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/adyzng/duka/misc"
-	"github.com/adyzng/duka/parse"
+	"github.com/adyzng/go-duka/core"
+	"github.com/adyzng/go-duka/misc"
 	"github.com/kjk/lzma"
 )
 
@@ -18,8 +18,7 @@ var (
 )
 
 type Bi5 struct {
-	day    time.Time
-	hour   int
+	timeH  time.Time
 	dest   string
 	symbol string
 }
@@ -27,19 +26,18 @@ type Bi5 struct {
 // New create an bi5 saver
 func New(day time.Time, hour int, symbol, dest string) *Bi5 {
 	return &Bi5{
-		day:    day,
-		hour:   hour,
+		timeH:  day.Add(time.Duration(hour) * time.Hour),
 		dest:   dest,
 		symbol: symbol,
 	}
 }
 
-func (b *Bi5) Decode(r io.Reader) ([]*parse.TickData, error) {
+func (b *Bi5) Decode(r io.Reader) ([]*core.TickData, error) {
 	dec := lzma.NewReader(r)
 	defer dec.Close()
 
-	ticksArr := make([]*parse.TickData, 0)
-	bytesArr := make([]byte, parse.TICK_BYTES)
+	ticksArr := make([]*core.TickData, 0)
+	bytesArr := make([]byte, core.TICK_BYTES)
 
 	for {
 		n, err := dec.Read(bytesArr[:])
@@ -48,18 +46,17 @@ func (b *Bi5) Decode(r io.Reader) ([]*parse.TickData, error) {
 			break
 		}
 
-		if n != parse.TICK_BYTES || err != nil {
+		if n != core.TICK_BYTES || err != nil {
 			log.Error("LZMA decode failed: %d: %v.", n, err)
 			break
 		}
 
-		t, err := parse.DecodeTickData(bytesArr[:], b.symbol)
+		t, err := core.DecodeTickData(bytesArr[:], b.symbol, b.timeH)
 		if err != nil {
 			log.Error("Decode tick data failed: %v.", err)
 			break
 		}
 
-		t.Time += time.Duration(b.hour) * time.Hour
 		ticksArr = append(ticksArr, t)
 	}
 
@@ -67,7 +64,7 @@ func (b *Bi5) Decode(r io.Reader) ([]*parse.TickData, error) {
 }
 
 func (b *Bi5) Save(r io.Reader) error {
-	subpath := fmt.Sprintf("%02dh.%s", b.hour, ext)
+	subpath := fmt.Sprintf("%02dh.%s", b.timeH.Hour(), ext)
 	fpath := filepath.Join(b.dest, subpath)
 
 	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 666)

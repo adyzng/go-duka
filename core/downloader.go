@@ -1,4 +1,4 @@
-package download
+package core
 
 // Downloader interface...
 type Downloader interface {

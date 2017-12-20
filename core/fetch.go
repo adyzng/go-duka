@@ -1,4 +1,4 @@
-package download
+package core
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/adyzng/duka/misc"
+	"github.com/adyzng/go-duka/misc"
 )
 
 const (

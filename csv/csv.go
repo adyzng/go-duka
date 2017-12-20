@@ -9,8 +9,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/adyzng/duka/misc"
-	"github.com/adyzng/duka/parse"
+	"github.com/adyzng/go-duka/core"
+	"github.com/adyzng/go-duka/misc"
 )
 
 var (
@@ -23,7 +23,7 @@ type CsvDump struct {
 	day    time.Time
 	dest   string
 	symbol string
-	ticks  []*parse.TickData
+	ticks  []*core.TickData
 }
 
 func New(day time.Time, symbol, dest string) *CsvDump {
@@ -50,11 +50,11 @@ func (c *CsvDump) Save(r io.Reader) error {
 
 	// sort by time
 	sort.Slice(c.ticks, func(i, j int) bool {
-		return c.ticks[i].Time < c.ticks[j].Time
+		return c.ticks[i].Time.Before(c.ticks[j].Time)
 	})
 
 	for _, tick := range c.ticks {
-		if err := csv.Write(tick.ToString(c.day)); err != nil {
+		if err := csv.Write(tick.ToString()); err != nil {
 			log.Error("Write CSV %s failed: %v.", fpath, err)
 			return err
 		}
@@ -64,7 +64,7 @@ func (c *CsvDump) Save(r io.Reader) error {
 	return nil
 }
 
-func (c *CsvDump) AddTicks(ticks []*parse.TickData) {
+func (c *CsvDump) AddTicks(ticks []*core.TickData) {
 	if len(ticks) > 0 {
 		c.ticks = append(c.ticks, ticks...)
 	}

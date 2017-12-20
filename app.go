@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adyzng/duka/bi5"
-	"github.com/adyzng/duka/csv"
-	"github.com/adyzng/duka/download"
-	"github.com/adyzng/duka/misc"
+	"github.com/adyzng/go-duka/bi5"
+	"github.com/adyzng/go-duka/core"
+	"github.com/adyzng/go-duka/csv"
+	"github.com/adyzng/go-duka/misc"
 )
 
 var (
@@ -34,7 +34,7 @@ func App(opt DukaOption) {
 	}
 
 	// dukascopy downloader
-	duka := download.NewDukaDownloader()
+	duka := core.NewDukaDownloader()
 	startTime := time.Now()
 
 	for day := opt.Start; day.Unix() < opt.End.Unix(); day = day.Add(24 * time.Hour) {
@@ -53,7 +53,9 @@ func App(opt DukaOption) {
 				wg.Add(1)
 				go func(hour int) {
 					defer wg.Done()
-					URL := fmt.Sprintf(download.DukaTmplURL, opt.Symbol, y, m, d, hour)
+
+					// !! caution: month - 1
+					URL := fmt.Sprintf(core.DukaTmplURL, opt.Symbol, y, m-1, d, hour)
 					if data, err := duka.Download(URL); err == nil {
 						chReaders <- &hReader{
 							Data: data,
