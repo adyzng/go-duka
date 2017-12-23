@@ -1,7 +1,7 @@
 package fxt4
 
 import (
-	"strings"
+	"github.com/adyzng/go-duka/misc"
 )
 
 /*
@@ -209,21 +209,16 @@ func NewHeader(version uint32, symbol string, timeframe, spread, model uint32) *
 		FirstBar: 1,
 	}
 
-	toFixBytes(h.Description[:], "Copyright 2001-2017, MetaQuotes Software Corp.")
-	toFixBytes(h.ServerName[:], "Beijing MoreU Tech.")
-	toFixBytes(h.Symbol[:], symbol)
-	toFixBytes(h.BaseCurrency[:], symbol[:3])
-	toFixBytes(h.MarginCurrency[:], symbol[3:])
+	misc.ToFixBytes(h.Description[:], "Copyright 2001-2017, MetaQuotes Software Corp.")
+	misc.ToFixBytes(h.ServerName[:], "Beijing MoreU Tech.")
+	misc.ToFixBytes(h.Symbol[:], symbol)
+	misc.ToFixBytes(h.BaseCurrency[:], symbol[:3])
+	misc.ToFixBytes(h.MarginCurrency[:], symbol[3:])
 
 	return h
 }
 
-// FixHeader after all ticks writed to file
-func (h *FXTHeader) FixHeader() {
+// AdjustHeader after all ticks writed to file
+func (h *FXTHeader) AdjustHeader() {
 
-}
-
-func toFixBytes(bs []byte, s string) (int, error) {
-	r := strings.NewReader(s)
-	return r.Read(bs[:])
 }

@@ -13,3 +13,10 @@ type Parser interface {
 type Saver interface {
 	Save(r io.Reader) error
 }
+
+// Convertor convert raw tick data into different file format
+// such as fxt, hst, csv
+type Convertor interface {
+	PackTicks(barTimestamp uint32, ticks []*TickData) error
+	Finish() error
+}

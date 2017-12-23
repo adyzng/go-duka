@@ -386,6 +386,7 @@ class FXT(Output):
                     max(int(uniBar['volume']), 1),                               # Volume (documentation says it's a double, though it's stored as a long int).
                     int(uniBar['tickTimestamp']),                                # The current time within a bar.
                     4))                                                          # Flag to launch an expert (0 - bar will be modified, but the expert will not be launched).
+            print("{0}: {1}".format(self.barCount, uniBar))
 
     def finalize(self):
         # Fixup the header.

@@ -23,7 +23,7 @@ type HTTPDownload struct {
 	client *http.Client
 }
 
-func NewDukaDownloader() Downloader {
+func NewDownloader() Downloader {
 	return &HTTPDownload{
 		client: &http.Client{
 			Timeout: 5 * time.Minute,
