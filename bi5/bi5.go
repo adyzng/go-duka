@@ -33,6 +33,7 @@ type Bi5 struct {
 	dayH   time.Time
 	symbol string
 	dest   string
+	save   bool
 }
 
 // New create an bi5 saver
@@ -79,7 +80,7 @@ func (b *Bi5) Decode(data []byte) ([]*core.TickData, error) {
 // Save bi5 data to file
 //
 func (b *Bi5) Save(data []byte) error {
-	if len(data) == 0 {
+	if len(data) == 0 || !b.save {
 		return nil
 	}
 
@@ -150,6 +151,7 @@ func (b *Bi5) Download() ([]byte, error) {
 
 	if len(data) > 0 {
 		log.Trace("Downloaded %s: %s.", b.symbol, b.dayH.Format("2006-01-02:15H"))
+		b.save = true
 		return data, err
 	}
 

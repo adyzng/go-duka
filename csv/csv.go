@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/adyzng/go-duka/core"
@@ -20,68 +19,89 @@ var (
 
 // CsvDump save csv format
 type CsvDump struct {
-	day    time.Time
-	dest   string
-	symbol string
-	header bool
-	ticks  []*core.TickData
+	day     time.Time
+	end     time.Time
+	dest    string
+	symbol  string
+	header  bool
+	close   chan struct{}
+	chTicks chan *core.TickData
 }
 
 // New Csv file
-func New(day time.Time, symbol, dest string, header bool) *CsvDump {
-	return &CsvDump{
-		day:    day,
-		dest:   dest,
-		symbol: symbol,
-		header: header,
+func New(start, end time.Time, header bool, symbol, dest string) *CsvDump {
+	csv := &CsvDump{
+		day:     start,
+		end:     end,
+		dest:    dest,
+		symbol:  symbol,
+		header:  header,
+		close:   make(chan struct{}, 1),
+		chTicks: make(chan *core.TickData, 1024),
 	}
+
+	go csv.worker()
+	return csv
 }
 
 // Finish complete csv file writing
 //
 func (c *CsvDump) Finish() error {
-	if len(c.ticks) == 0 {
-		return nil
-	}
-
-	subpath := fmt.Sprintf("%s-%s.%s", c.symbol, c.day.Format("2006-01-02"), ext)
-	fpath := filepath.Join(c.dest, subpath)
-
-	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 666)
-	if err != nil {
-		log.Error("Create file %s failed: %v.", fpath, err)
-		return err
-	}
-	defer f.Close()
-
-	csv := csv.NewWriter(f)
-	defer csv.Flush()
-
-	if c.header {
-		csv.Write(csvHeader)
-	}
-
-	// sort by time
-	sort.Slice(c.ticks, func(i, j int) bool {
-		return c.ticks[i].Timestamp < c.ticks[j].Timestamp
-	})
-
-	for _, tick := range c.ticks {
-		if err := csv.Write(tick.ToString()); err != nil {
-			log.Error("Write csv %s failed: %v.", subpath, err)
-			return err
-		}
-	}
-
-	log.Trace("Saved file %s with %d ticks.", subpath, len(c.ticks))
+	<-c.close
 	return nil
 }
 
 // PackTicks handle ticks data
 //
 func (c *CsvDump) PackTicks(barTimestamp uint32, ticks []*core.TickData) error {
-	if len(ticks) > 0 {
-		c.ticks = append(c.ticks, ticks...)
+	for _, tick := range ticks {
+		select {
+		case c.chTicks <- tick:
+			break
+		}
 	}
 	return nil
+}
+
+// worker goroutine which flust data to disk
+//
+func (c *CsvDump) worker() error {
+	fname := fmt.Sprintf("%s-%s-%s.%s",
+		c.symbol,
+		c.day.Format("2006-01-02"),
+		c.end.Format("2006-01-02"),
+		ext)
+
+	fpath := filepath.Join(c.dest, fname)
+	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 666)
+	if err != nil {
+		log.Error("Failed to create file %s, error %v.", fpath, err)
+		return err
+	}
+
+	defer func() {
+		f.Close()
+		close(c.close)
+	}()
+
+	var tickCount int64
+	csv := csv.NewWriter(f)
+	defer csv.Flush()
+
+	// write header
+	if c.header {
+		csv.Write(csvHeader)
+	}
+
+	// write tick one by one
+	for tick := range c.chTicks {
+		if err = csv.Write(tick.ToString()); err != nil {
+			log.Error("Write csv %s failed: %v.", fpath, err)
+			break
+		}
+		tickCount++
+	}
+
+	log.Trace("Saved %s with %d ticks.", fpath, tickCount)
+	return err
 }

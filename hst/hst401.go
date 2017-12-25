@@ -120,8 +120,8 @@ func (h *HST401) PackTicks(barTimestamp uint32, ticks []*core.TickData) error {
 	select {
 	case h.chBars <- bar:
 		break
-	case <-h.close:
-		break
+		//case <-h.close:
+		//	break
 	}
 	return nil
 }
@@ -129,8 +129,9 @@ func (h *HST401) PackTicks(barTimestamp uint32, ticks []*core.TickData) error {
 // Finish HST file convert
 //
 func (h *HST401) Finish() error {
-	close(h.close)
+	//close(h.close)
 	close(h.chBars)
 	h.wg.Wait()
+	close(h.close)
 	return nil
 }

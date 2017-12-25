@@ -4,12 +4,12 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/adyzng/go-duka/core"
 	"github.com/adyzng/go-duka/csv"
 	"github.com/adyzng/go-duka/fxt4"
 	"github.com/adyzng/go-duka/hst"
+	"github.com/go-clog/clog"
 )
 
 var (
@@ -23,41 +23,30 @@ var (
 	}
 )
 
-// FormatConvert bi5 to csv/hst/fxt
-type FormatConvert struct {
-	option AppOption
-	tfs    []*Timeframe // M1, M5, M15, M30, H1, H4, D1, W1, MN
-
-}
-
-func NewConvert(opt *AppOption) *FormatConvert {
-	tfs := make([]*Timeframe, 0)
+func NewOutputs(opt *AppOption) []core.Converter {
+	outs := make([]core.Converter, 0)
 	for _, period := range strings.Split(opt.Periods, ",") {
+		var format core.Converter
 		timeframe, _ := ParseTimeframe(strings.Trim(period, " \t\r\n"))
 
-		var out core.Convertor
 		switch opt.Format {
 		case "csv":
-			out = csv.New(opt.Start, opt.Symbol, opt.Folder, opt.CsvHeader)
+			format = csv.New(opt.Start, opt.End, opt.CsvHeader, opt.Symbol, opt.Folder)
 			break
 		case "fxt":
-			out = fxt4.NewFxtFile(timeframe, opt.Spread, opt.Mode, opt.Folder, opt.Symbol)
+			format = fxt4.NewFxtFile(timeframe, opt.Spread, opt.Mode, opt.Folder, opt.Symbol)
 			break
 		case "hst":
-			out = hst.NewHST(timeframe, opt.Spread, opt.Symbol, opt.Folder)
+			format = hst.NewHST(timeframe, opt.Spread, opt.Symbol, opt.Folder)
 			break
 		default:
 			log.Error("unsupported format %s.", opt.Format)
 			return nil
 		}
 
-		tfs = append(tfs, NewTimeframe(period, opt.Symbol, out))
+		outs = append(outs, NewTimeframe(period, opt.Symbol, format))
 	}
-
-	return &FormatConvert{
-		option: *opt,
-		tfs:    tfs,
-	}
+	return outs
 }
 
 // Timeframe wrapper of tick data in timeframe like: M1, M5, M15, M30, H1, H4, D1, W1, MN
@@ -72,7 +61,7 @@ type Timeframe struct {
 
 	chTicks chan *core.TickData
 	close   chan struct{}
-	out     core.Convertor
+	out     core.Converter
 }
 
 // ParseTimeframe from input string
@@ -91,7 +80,7 @@ func ParseTimeframe(period string) (uint32, string) {
 }
 
 // NewTimeframe create an new timeframe
-func NewTimeframe(period, symbol string, out core.Convertor) *Timeframe {
+func NewTimeframe(period, symbol string, out core.Converter) core.Converter {
 	min, str := ParseTimeframe(period)
 	tf := &Timeframe{
 		deltaTimestamp: min * 60,
@@ -108,7 +97,7 @@ func NewTimeframe(period, symbol string, out core.Convertor) *Timeframe {
 }
 
 // PackTicks receive original tick data
-func (tf *Timeframe) PackTicks(ticks []*core.TickData) error {
+func (tf *Timeframe) PackTicks(barTimestamp uint32, ticks []*core.TickData) error {
 	for _, tick := range ticks {
 		select {
 		case tf.chTicks <- tick:
@@ -119,20 +108,28 @@ func (tf *Timeframe) PackTicks(ticks []*core.TickData) error {
 }
 
 // Finish wait convert finish
-func (tf *Timeframe) Finish() {
+func (tf *Timeframe) Finish() error {
 	<-tf.close
+	return tf.out.Finish()
 }
 
 // worker thread
 func (tf *Timeframe) worker() error {
 	maxCap := 1024
-	startTime := time.Now()
 	barTicks := make([]*core.TickData, 0, maxCap)
+
+	defer func() {
+		clog.Info("%s %s convert completed.", tf.symbol, tf.period)
+		close(tf.close)
+	}()
+
+	var tickSeconds uint32
+	var tickBarTime uint32
 
 	for tick := range tf.chTicks {
 		// Beginning of the bar's timeline.
-		tickSeconds := uint32(tick.Timestamp / 1000)
-		tickBarTime := tickSeconds - tickSeconds%tf.deltaTimestamp
+		tickSeconds = uint32(tick.Timestamp / 1000)
+		tickBarTime = tickSeconds - tickSeconds%tf.deltaTimestamp
 
 		//Determines the end of the current bar.
 		if tickSeconds >= tf.endTimestamp {
@@ -155,7 +152,9 @@ func (tf *Timeframe) worker() error {
 		}
 	}
 
-	log.Info("%s : %s convert completed. Time cost: %v.", tf.symbol, tf.period, time.Since(startTime))
-	close(tf.close)
+	if len(barTicks) > 0 {
+		tf.out.PackTicks(tickBarTime, barTicks[:])
+	}
+
 	return nil
 }

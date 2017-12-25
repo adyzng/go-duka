@@ -57,7 +57,7 @@ type FxtFile struct {
 	lastUniBar     *fxtTick
 	deltaTimestamp uint32
 	endTimestamp   uint32
-	barCount       uint64
+	barCount       int32
 }
 
 // NewFxtFile create an new fxt file instance
@@ -90,27 +90,25 @@ func (f *FxtFile) worker() error {
 	//
 	// write FXT header
 	//
-	if err = binary.Write(bu, binary.BigEndian, f.header); err != nil {
+	if err = binary.Write(bu, binary.LittleEndian, f.header); err != nil {
 		log.Error("Write FXT header failed: %v.", err)
 		return err
 	}
 
 	for tick := range f.chTicks {
 		bu.Reset()
-
 		//
 		//  write tick data
 		//
-		if err = binary.Write(bu, binary.BigEndian, tick); err != nil {
+		if err = binary.Write(bu, binary.LittleEndian, tick); err != nil {
 			log.Error("Pack tick failed: %v.", err)
 			break
 		}
 
-		f.barCount++
-		f.lastUniBar = tick
 		if f.firstUniBar == nil {
 			f.firstUniBar = tick
 		}
+		f.lastUniBar = tick
 
 		if _, err = fxt.Write(bu.Bytes()); err != nil {
 			log.Error("Write fxt tick (%x) failed: %v.", bu.Bytes(), err)
@@ -124,13 +122,81 @@ func (f *FxtFile) worker() error {
 
 func (f *FxtFile) PackTicks(barTimestemp uint32, ticks []*core.TickData) error {
 	for _, tick := range ticks {
-		f.chTicks <- convertToFxtTick(tick)
+		f.chTicks <- &fxtTick{
+			BarTimestamp:  int32(barTimestemp),
+			TickTimestamp: int32(tick.Timestamp / 1000),
+			Open:          tick.Bid,
+			High:          tick.Bid,
+			Low:           tick.Bid,
+			Close:         tick.Bid,
+			Volume:        uint64(tick.VolumeBid),
+		}
+		//f.chTicks <- convertToFxtTick(tick)
 	}
+	f.barCount++
+	return nil
+}
+
+func (f *FxtFile) adjustHeader() error {
+	fxt, err := os.OpenFile(f.fpath, os.O_RDWR, 666)
+	if err != nil {
+		log.Fatal("Open file %s failed: %v.", f.fpath, err)
+		return err
+	}
+	defer fxt.Close()
+
+	// first part
+	if _, err := fxt.Seek(216, os.SEEK_SET); err == nil {
+		d := struct {
+			BarCount          int32 // Total bar count
+			BarStartTimestamp int32 // Modelling start date - date of the first tick.
+			BarEndTimestamp   int32 // Modelling end date - date of the last tick.
+		}{
+			f.barCount,
+			f.firstUniBar.BarTimestamp,
+			f.lastUniBar.BarTimestamp,
+		}
+
+		bu := new(bytes.Buffer)
+		if err = binary.Write(bu, binary.LittleEndian, &d); err == nil {
+			_, err = fxt.Write(bu.Bytes())
+		}
+		if err != nil {
+			log.Error("Adjust FXT header 1 failed: %v.", err)
+			return err
+		}
+	} else {
+		log.Error("File seek 1 failed: %v.", err)
+		return err
+	}
+
+	// end part
+	if _, err := fxt.Seek(472, os.SEEK_SET); err == nil {
+		d := struct {
+			BarStartTimestamp int32 // Tester start date - date of the first tick.
+			BarEndTimestamp   int32 // Tester end date - date of the last tick.
+		}{
+			f.firstUniBar.BarTimestamp,
+			f.lastUniBar.BarTimestamp,
+		}
+		bu := new(bytes.Buffer)
+		if err = binary.Write(bu, binary.LittleEndian, &d); err == nil {
+			_, err = fxt.Write(bu.Bytes())
+		}
+		if err != nil {
+			log.Error("Adjust FXT header 2 failed: %v.", err)
+			return err
+		}
+	} else {
+		log.Error("File seek 2 failed: %v.", err)
+		return err
+	}
+
 	return nil
 }
 
 func (f *FxtFile) Finish() error {
 	close(f.chTicks)
 	f.wg.Wait()
-	return nil
+	return f.adjustHeader()
 }
