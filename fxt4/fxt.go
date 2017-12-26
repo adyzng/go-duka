@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/adyzng/go-duka/core"
 	"github.com/adyzng/go-duka/misc"
@@ -49,15 +48,16 @@ func convertToFxtTick(tick *core.TickData) *fxtTick {
 //		M - model number (0,1 or 2)
 //
 type FxtFile struct {
-	wg             sync.WaitGroup
-	header         *FXTHeader
-	chTicks        chan *fxtTick
 	fpath          string
+	header         *FXTHeader
 	firstUniBar    *fxtTick
 	lastUniBar     *fxtTick
 	deltaTimestamp uint32
 	endTimestamp   uint32
 	barCount       int32
+	tickCount      int64
+	chTicks        chan *fxtTick
+	chClose        chan struct{}
 }
 
 // NewFxtFile create an new fxt file instance
@@ -67,16 +67,19 @@ func NewFxtFile(timeframe, spread, model uint32, dest, symbol string) *FxtFile {
 		header:         NewHeader(405, symbol, timeframe, spread, model),
 		fpath:          filepath.Join(dest, fn),
 		chTicks:        make(chan *fxtTick, 1024),
+		chClose:        make(chan struct{}, 1),
 		deltaTimestamp: timeframe * 60,
 	}
 
-	fxt.wg.Add(1)
 	go fxt.worker()
 	return fxt
 }
 
 func (f *FxtFile) worker() error {
-	defer f.wg.Done()
+	defer func() {
+		close(f.chClose)
+		log.Info("Saved Bar: %d, Ticks: %d.", f.barCount, f.tickCount)
+	}()
 
 	fxt, err := os.OpenFile(f.fpath, os.O_CREATE|os.O_TRUNC, 666)
 	if err != nil {
@@ -115,8 +118,6 @@ func (f *FxtFile) worker() error {
 			break
 		}
 	}
-
-	log.Trace("Total %u ticks write.", f.barCount)
 	return err
 }
 
@@ -131,9 +132,12 @@ func (f *FxtFile) PackTicks(barTimestemp uint32, ticks []*core.TickData) error {
 			Close:         tick.Bid,
 			Volume:        uint64(tick.VolumeBid),
 		}
-		//f.chTicks <- convertToFxtTick(tick)
+		f.tickCount++
 	}
-	f.barCount++
+	if f.endTimestamp != barTimestemp {
+		f.barCount++
+		f.endTimestamp = barTimestemp
+	}
 	return nil
 }
 
@@ -197,6 +201,6 @@ func (f *FxtFile) adjustHeader() error {
 
 func (f *FxtFile) Finish() error {
 	close(f.chTicks)
-	f.wg.Wait()
+	<-f.chClose
 	return f.adjustHeader()
 }

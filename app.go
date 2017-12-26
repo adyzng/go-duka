@@ -166,10 +166,10 @@ func (app *DukaApp) Execute() error {
 	var wg sync.WaitGroup
 	for _, output := range app.outputs {
 		wg.Add(1)
-		go func() {
+		go func(o core.Converter) {
 			defer wg.Done()
-			output.Finish()
-		}()
+			o.Finish()
+		}(output)
 	}
 
 	wg.Wait()

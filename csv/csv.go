@@ -12,20 +12,21 @@ import (
 )
 
 var (
-	ext       = "csv"
+	ext       = "CSV"
 	log       = misc.NewLogger("CSV", 3)
 	csvHeader = []string{"time", "ask", "bid", "ask_volume", "bid_volume"}
 )
 
 // CsvDump save csv format
 type CsvDump struct {
-	day     time.Time
-	end     time.Time
-	dest    string
-	symbol  string
-	header  bool
-	close   chan struct{}
-	chTicks chan *core.TickData
+	day       time.Time
+	end       time.Time
+	dest      string
+	symbol    string
+	header    bool
+	tickCount int64
+	chClose   chan struct{}
+	chTicks   chan *core.TickData
 }
 
 // New Csv file
@@ -36,7 +37,7 @@ func New(start, end time.Time, header bool, symbol, dest string) *CsvDump {
 		dest:    dest,
 		symbol:  symbol,
 		header:  header,
-		close:   make(chan struct{}, 1),
+		chClose: make(chan struct{}, 1),
 		chTicks: make(chan *core.TickData, 1024),
 	}
 
@@ -47,7 +48,8 @@ func New(start, end time.Time, header bool, symbol, dest string) *CsvDump {
 // Finish complete csv file writing
 //
 func (c *CsvDump) Finish() error {
-	<-c.close
+	close(c.chTicks)
+	<-c.chClose
 	return nil
 }
 
@@ -57,6 +59,7 @@ func (c *CsvDump) PackTicks(barTimestamp uint32, ticks []*core.TickData) error {
 	for _, tick := range ticks {
 		select {
 		case c.chTicks <- tick:
+			c.tickCount++
 			break
 		}
 	}
@@ -81,10 +84,10 @@ func (c *CsvDump) worker() error {
 
 	defer func() {
 		f.Close()
-		close(c.close)
+		close(c.chClose)
+		log.Info("Saved Ticks: %d.", c.tickCount)
 	}()
 
-	var tickCount int64
 	csv := csv.NewWriter(f)
 	defer csv.Flush()
 
@@ -99,9 +102,7 @@ func (c *CsvDump) worker() error {
 			log.Error("Write csv %s failed: %v.", fpath, err)
 			break
 		}
-		tickCount++
 	}
 
-	log.Trace("Saved %s with %d ticks.", fpath, tickCount)
 	return err
 }

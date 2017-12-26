@@ -16,6 +16,13 @@ type TickData struct {
 	VolumeBid float64 // 单位：MIO(百万)
 }
 
+// UTC convert timestamp to UTC time
+//
+func (t *TickData) UTC() time.Time {
+	tm := time.Unix(t.Timestamp/1000, (t.Timestamp%1000)*int64(time.Millisecond))
+	return tm.UTC()
+}
+
 // BarData means tick data within one Bar
 //
 type BarData struct {
@@ -31,9 +38,8 @@ type BarData struct {
 // ToString used to format into csv row
 //
 func (t *TickData) ToString() []string {
-	tm := time.Unix(t.Timestamp/1000, (t.Timestamp%1000)*int64(time.Millisecond))
 	return []string{
-		tm.Format("2006-01-02 15:04:05.000"),
+		t.UTC().Format("2006-01-02 15:04:05.000"),
 		fmt.Sprintf("%.5f", t.Ask),
 		fmt.Sprintf("%.5f", t.Bid),
 		fmt.Sprintf("%.2f", t.VolumeAsk),

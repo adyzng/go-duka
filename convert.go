@@ -9,7 +9,6 @@ import (
 	"github.com/adyzng/go-duka/csv"
 	"github.com/adyzng/go-duka/fxt4"
 	"github.com/adyzng/go-duka/hst"
-	"github.com/go-clog/clog"
 )
 
 var (
@@ -109,6 +108,7 @@ func (tf *Timeframe) PackTicks(barTimestamp uint32, ticks []*core.TickData) erro
 
 // Finish wait convert finish
 func (tf *Timeframe) Finish() error {
+	close(tf.chTicks)
 	<-tf.close
 	return tf.out.Finish()
 }
@@ -119,7 +119,7 @@ func (tf *Timeframe) worker() error {
 	barTicks := make([]*core.TickData, 0, maxCap)
 
 	defer func() {
-		clog.Info("%s %s convert completed.", tf.symbol, tf.period)
+		log.Info("%s %s convert completed.", tf.symbol, tf.period)
 		close(tf.close)
 	}()
 

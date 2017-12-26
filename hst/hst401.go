@@ -5,7 +5,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/adyzng/go-duka/core"
 	"github.com/adyzng/go-duka/misc"
@@ -18,14 +17,14 @@ var (
 // HST401 MT4 history data format .hst with version 401
 //
 type HST401 struct {
-	wg       sync.WaitGroup
 	header   *Header
 	dest     string
 	symbol   string
 	spread   uint32
 	timefame uint32
+	barCount int64
 	chBars   chan *BarData
-	close    chan struct{}
+	chClose  chan struct{}
 }
 
 // NewHST create a HST convertor
@@ -38,12 +37,10 @@ func NewHST(timefame, spread uint32, symbol, dest string) *HST401 {
 		spread:   spread,
 		timefame: timefame,
 		chBars:   make(chan *BarData, 128),
-		close:    make(chan struct{}, 1),
+		chClose:  make(chan struct{}, 1),
 	}
 
-	hst.wg.Add(1)
 	go hst.worker()
-
 	return hst
 }
 
@@ -61,8 +58,8 @@ func (h *HST401) worker() error {
 
 	defer func() {
 		f.Close()
-		h.wg.Done()
-		log.Trace("Saved : %s.", fpath)
+		close(h.chClose)
+		log.Info("Saved Bar: %d.", h.barCount)
 	}()
 
 	// write HST header
@@ -119,6 +116,7 @@ func (h *HST401) PackTicks(barTimestamp uint32, ticks []*core.TickData) error {
 
 	select {
 	case h.chBars <- bar:
+		h.barCount++
 		break
 		//case <-h.close:
 		//	break
@@ -129,9 +127,7 @@ func (h *HST401) PackTicks(barTimestamp uint32, ticks []*core.TickData) error {
 // Finish HST file convert
 //
 func (h *HST401) Finish() error {
-	//close(h.close)
 	close(h.chBars)
-	h.wg.Wait()
-	close(h.close)
+	<-h.chClose
 	return nil
 }

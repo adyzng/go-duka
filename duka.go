@@ -115,8 +115,8 @@ func main() {
 	fmt.Printf(" Timeframe: %d\n", opt.Timeframe)
 	fmt.Printf("    Format: %s\n", opt.Format)
 	fmt.Printf(" CsvHeader: %t\n", opt.CsvHeader)
-	fmt.Printf(" StartDate: %s\n", opt.Start.Format("2006-01-02"))
-	fmt.Printf("   EndDate: %s\n", opt.End.Format("2006-01-02"))
+	fmt.Printf(" StartDate: %s\n", opt.Start.Format("2006-01-02:15H"))
+	fmt.Printf("   EndDate: %s\n", opt.End.Format("2006-01-02:15H"))
 
 	defer clog.Shutdown()
 	app := NewApp(opt)
