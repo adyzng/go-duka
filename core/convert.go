@@ -1,19 +1,13 @@
-package main
+package core
 
 import (
 	"regexp"
 	"strconv"
-	"strings"
-
-	"github.com/adyzng/go-duka/core"
-	"github.com/adyzng/go-duka/csv"
-	"github.com/adyzng/go-duka/fxt4"
-	"github.com/adyzng/go-duka/hst"
 )
 
 var (
-	tfRegexp = regexp.MustCompile(`(M|H|D|W|MN)(\d+)`)
-	tfMinute = map[string]uint32{
+	TimeframeRegx = regexp.MustCompile(`(M|H|D|W|MN)(\d+)`)
+	tfMinute      = map[string]uint32{
 		"M":  1,
 		"H":  60,
 		"D":  24 * 60,
@@ -21,32 +15,6 @@ var (
 		"MN": 30 * 24 * 60,
 	}
 )
-
-func NewOutputs(opt *AppOption) []core.Converter {
-	outs := make([]core.Converter, 0)
-	for _, period := range strings.Split(opt.Periods, ",") {
-		var format core.Converter
-		timeframe, _ := ParseTimeframe(strings.Trim(period, " \t\r\n"))
-
-		switch opt.Format {
-		case "csv":
-			format = csv.New(opt.Start, opt.End, opt.CsvHeader, opt.Symbol, opt.Folder)
-			break
-		case "fxt":
-			format = fxt4.NewFxtFile(timeframe, opt.Spread, opt.Mode, opt.Folder, opt.Symbol)
-			break
-		case "hst":
-			format = hst.NewHST(timeframe, opt.Spread, opt.Symbol, opt.Folder)
-			break
-		default:
-			log.Error("unsupported format %s.", opt.Format)
-			return nil
-		}
-
-		outs = append(outs, NewTimeframe(period, opt.Symbol, format))
-	}
-	return outs
-}
 
 // Timeframe wrapper of tick data in timeframe like: M1, M5, M15, M30, H1, H4, D1, W1, MN
 //
@@ -58,16 +26,16 @@ type Timeframe struct {
 	period         string // M1, M5, M15, M30, H1, H4, D1, W1, MN
 	symbol         string
 
-	chTicks chan *core.TickData
+	chTicks chan *TickData
 	close   chan struct{}
-	out     core.Converter
+	out     Converter
 }
 
 // ParseTimeframe from input string
 //
 func ParseTimeframe(period string) (uint32, string) {
 	// M15 => [M15 M 15]
-	if ss := tfRegexp.FindStringSubmatch(period); len(ss) == 3 {
+	if ss := TimeframeRegx.FindStringSubmatch(period); len(ss) == 3 {
 		n, _ := strconv.Atoi(ss[2])
 		for key, val := range tfMinute {
 			if key == ss[1] {
@@ -79,7 +47,7 @@ func ParseTimeframe(period string) (uint32, string) {
 }
 
 // NewTimeframe create an new timeframe
-func NewTimeframe(period, symbol string, out core.Converter) core.Converter {
+func NewTimeframe(period, symbol string, out Converter) Converter {
 	min, str := ParseTimeframe(period)
 	tf := &Timeframe{
 		deltaTimestamp: min * 60,
@@ -87,7 +55,7 @@ func NewTimeframe(period, symbol string, out core.Converter) core.Converter {
 		period:         str,
 		symbol:         symbol,
 		out:            out,
-		chTicks:        make(chan *core.TickData, 1024),
+		chTicks:        make(chan *TickData, 1024),
 		close:          make(chan struct{}, 1),
 	}
 
@@ -96,7 +64,7 @@ func NewTimeframe(period, symbol string, out core.Converter) core.Converter {
 }
 
 // PackTicks receive original tick data
-func (tf *Timeframe) PackTicks(barTimestamp uint32, ticks []*core.TickData) error {
+func (tf *Timeframe) PackTicks(barTimestamp uint32, ticks []*TickData) error {
 	for _, tick := range ticks {
 		select {
 		case tf.chTicks <- tick:
@@ -116,7 +84,7 @@ func (tf *Timeframe) Finish() error {
 // worker thread
 func (tf *Timeframe) worker() error {
 	maxCap := 1024
-	barTicks := make([]*core.TickData, 0, maxCap)
+	barTicks := make([]*TickData, 0, maxCap)
 
 	defer func() {
 		log.Info("%s %s convert completed.", tf.symbol, tf.period)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,9 @@ import (
 
 	"github.com/adyzng/go-duka/bi5"
 	"github.com/adyzng/go-duka/core"
+	"github.com/adyzng/go-duka/csv"
+	"github.com/adyzng/go-duka/fxt4"
+	"github.com/adyzng/go-duka/hst"
 	"github.com/adyzng/go-duka/misc"
 )
 
@@ -29,23 +33,17 @@ type DukaApp struct {
 // AppOption download options
 //
 type AppOption struct {
-	Start     time.Time
-	End       time.Time
-	Symbol    string
-	Format    string
-	Folder    string
-	Periods   string
-	Spread    uint32
-	Mode      uint32
-	Timeframe uint32
+	Start   time.Time
+	End     time.Time
+	Symbol  string
+	Format  string
+	Folder  string
+	Periods string
+	Spread  uint32
+	Mode    uint32
+	//Timeframe uint32
 	Convert   bool
 	CsvHeader bool
-}
-
-type hReader struct {
-	Bi5  *bi5.Bi5
-	DayH time.Time
-	Data []byte
 }
 
 // ParseOption parse input command line
@@ -59,6 +57,7 @@ func ParseOption(args argsList) (*AppOption, error) {
 		err = fmt.Errorf("Invalid symbol parameter")
 		return nil, err
 	}
+	// check format
 	{
 		bSupport, format := false, strings.ToLower(args.Format)
 		for _, sformat := range supportsFormats {
@@ -71,6 +70,7 @@ func ParseOption(args argsList) (*AppOption, error) {
 			err = fmt.Errorf("not supported output format")
 			return nil, err
 		}
+		opt.Format = format
 	}
 	if opt.Start, err = time.ParseInLocation("2006-01-02", args.Start, time.UTC); err != nil {
 		err = fmt.Errorf("invalid start parameter")
@@ -95,7 +95,7 @@ func ParseOption(args argsList) (*AppOption, error) {
 
 	if args.Period != "" {
 		args.Period = strings.ToUpper(args.Period)
-		if !tfRegexp.MatchString(args.Period) {
+		if !core.TimeframeRegx.MatchString(args.Period) {
 			err = fmt.Errorf("invalid timeframe value: %s", args.Period)
 			return nil, err
 		}
@@ -104,11 +104,40 @@ func ParseOption(args argsList) (*AppOption, error) {
 
 	opt.Symbol = strings.ToUpper(args.Symbol)
 	opt.CsvHeader = args.Header
+	opt.Convert = args.Convert
 	opt.Format = args.Format
 	opt.Spread = uint32(args.Spread)
 	opt.Mode = uint32(args.Model)
 
 	return &opt, nil
+}
+
+// NewOutputs create timeframe instance
+//
+func NewOutputs(opt *AppOption) []core.Converter {
+	outs := make([]core.Converter, 0)
+	for _, period := range strings.Split(opt.Periods, ",") {
+		var format core.Converter
+		timeframe, _ := core.ParseTimeframe(strings.Trim(period, " \t\r\n"))
+
+		switch opt.Format {
+		case "csv":
+			format = csv.New(opt.Start, opt.End, opt.CsvHeader, opt.Symbol, opt.Folder)
+			break
+		case "fxt":
+			format = fxt4.NewFxtFile(timeframe, opt.Spread, opt.Mode, opt.Folder, opt.Symbol)
+			break
+		case "hst":
+			format = hst.NewHST(timeframe, opt.Spread, opt.Symbol, opt.Folder)
+			break
+		default:
+			log.Error("unsupported format %s.", opt.Format)
+			return nil
+		}
+
+		outs = append(outs, core.NewTimeframe(period, opt.Symbol, format))
+	}
+	return outs
 }
 
 // NewApp create an application instance by input arguments
@@ -120,6 +149,12 @@ func NewApp(opt *AppOption) *DukaApp {
 	}
 }
 
+type hReader struct {
+	Bi5  *bi5.Bi5
+	DayH time.Time
+	Data []byte
+}
+
 // Execute download source bi5 tick data from dukascopy
 //
 func (app *DukaApp) Execute() error {
@@ -128,6 +163,11 @@ func (app *DukaApp) Execute() error {
 		opt       = app.option
 		startTime = time.Now()
 	)
+
+	if len(app.outputs) < 1 {
+		log.Error("No valid output format")
+		return errors.New("no valid output format")
+	}
 
 	//
 	// 创建输出目录
@@ -209,12 +249,13 @@ func (app *DukaApp) fetchDay(day time.Time) <-chan *hReader {
 				}
 
 				if err != nil {
-					log.Error("%s, %s failed: %v.", str, dayH.Format("2006-01-02:15H"))
+					log.Error("%s, %s failed: %v.", str, dayH.Format("2006-01-02:15H"), err)
 					return
 				}
 				if len(data) > 0 {
 					select {
 					case ch <- &hReader{Data: data[:], DayH: dayH, Bi5: bi5File}:
+						//log.Trace("%s %s", str, dayH.Format("2006-01-02:15H"))
 						break
 					}
 				}
@@ -222,7 +263,7 @@ func (app *DukaApp) fetchDay(day time.Time) <-chan *hReader {
 		}
 
 		wg.Wait()
-		log.Trace("%s %s download complete.", opt.Symbol, day.Format("2006-01-02"))
+		log.Trace("Bi5 %s %s complete.", opt.Symbol, day.Format("2006-01-02"))
 	}()
 
 	return ch
@@ -246,9 +287,9 @@ func (app *DukaApp) sortAndOutput(day time.Time, ticks []*core.TickData) error {
 		out.PackTicks(timestamp, ticks[:])
 	}
 
-	firstTick := ticks[0].Timestamp
-	tm := time.Unix(firstTick/1000, 0).UTC()
-	log.Trace("%s sort and output day %v.", app.option.Format, tm)
+	//firstTick := ticks[0].Timestamp
+	//tm := time.Unix(firstTick/1000, 0).UTC()
+	//log.Trace("%s sort and output day %v.", app.option.Format, tm)
 	return nil
 }
 

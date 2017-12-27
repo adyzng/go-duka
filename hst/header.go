@@ -1,6 +1,7 @@
 package hst
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/adyzng/go-duka/misc"
@@ -22,7 +23,7 @@ type Header struct {
 	Digits    uint32     //  84    4   The amount of digits after decimal point in the symbol
 	TimeSign  uint32     //  88    4   Time of sign (database creation)
 	LastSync  uint32     //  92    4   Time of last synchronization
-	unused    [13]uint32 //  96   52   unused
+	_         [13]uint32 //  96   52   unused
 }
 
 // BarData wrap the bar data inside hst (60 Bytes)
@@ -30,9 +31,9 @@ type Header struct {
 type BarData struct {
 	CTM        uint32  //   0   4   current time in seconds
 	_          uint32  //   4   4   for padding only
-	Open       float64 //   8   8   OLHCV
-	Low        float64 //  16   8   L
+	Open       float64 //   8   8   OHLCV
 	High       float64 //  24   8   H
+	Low        float64 //  16   8   L
 	Close      float64 //  32   8   C
 	Volume     uint64  //  40   8   V
 	Spread     uint32  //  48   4
@@ -50,7 +51,7 @@ func NewHeader(timeframe uint32, symbol string) *Header {
 	}
 
 	misc.ToFixBytes(h.Symbol[:], symbol)
-	misc.ToFixBytes(h.Copyright[:], "(C)opyright 2017, MetaQuotes Software Corp.")
+	misc.ToFixBytes(h.Copyright[:], "##(C)opyright 2017, MetaQuotes Software Corp.")
 	return h
 }
 
@@ -74,4 +75,28 @@ func (b *BarData) ToBytes() ([]byte, error) {
 		return make([]byte, 0), err
 	}
 	return bs, err
+}
+
+func (b *BarData) String() string {
+	tm := time.Unix(int64(b.CTM), 0).UTC()
+	return fmt.Sprintf("%s %f %f %f %f %d",
+		tm.Format("2006-01-02 15:04"),
+		b.Open,
+		b.High,
+		b.Low,
+		b.Close,
+		b.Volume,
+	)
+}
+
+func (b *BarData) Strings() []string {
+	tm := time.Unix(int64(b.CTM), 0).UTC()
+	return []string{
+		tm.Format("2006.01.02,15:04"),
+		fmt.Sprintf("%.5f", b.Open),
+		fmt.Sprintf("%.5f", b.High),
+		fmt.Sprintf("%.5f", b.Low),
+		fmt.Sprintf("%.5f", b.Close),
+		fmt.Sprintf("%d", b.Volume),
+	}
 }

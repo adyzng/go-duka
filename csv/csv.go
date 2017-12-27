@@ -98,7 +98,7 @@ func (c *CsvDump) worker() error {
 
 	// write tick one by one
 	for tick := range c.chTicks {
-		if err = csv.Write(tick.ToString()); err != nil {
+		if err = csv.Write(tick.Strings()); err != nil {
 			log.Error("Write csv %s failed: %v.", fpath, err)
 			break
 		}

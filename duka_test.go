@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	clog "gopkg.in/clog.v1"
+	clog "github.com/go-clog/clog"
 )
 
 func TestDukaApp(t *testing.T) {
@@ -14,7 +14,7 @@ func TestDukaApp(t *testing.T) {
 		Spread:  20,
 		Model:   0,
 		Symbol:  "EURUSD",
-		Output:  "g:\\00",
+		Output:  "f:\\00",
 		Format:  "csv",
 		Period:  "M1",
 		Start:   "2017-01-01",

@@ -15,30 +15,6 @@ var (
 	log = misc.NewLogger("FXT", 3)
 )
 
-type fxtTick struct {
-	BarTimestamp  int32
-	padding       int32
-	Open          float64
-	High          float64
-	Low           float64
-	Close         float64
-	Volume        uint64
-	TickTimestamp int32
-	LaunchExpert  int32
-}
-
-func convertToFxtTick(tick *core.TickData) *fxtTick {
-	return &fxtTick{
-		BarTimestamp:  int32(tick.Timestamp / 1000),
-		TickTimestamp: int32(tick.Timestamp / 1000),
-		Open:          tick.Bid,
-		High:          tick.Bid,
-		Low:           tick.Bid,
-		Close:         tick.Bid,
-		Volume:        uint64(tick.VolumeBid),
-	}
-}
-
 // FxtFile define fxt file format
 //
 // Refer: https://github.com/EA31337/MT-Formats
@@ -49,14 +25,17 @@ func convertToFxtTick(tick *core.TickData) *fxtTick {
 //
 type FxtFile struct {
 	fpath          string
+	symbol         string
+	model          uint32
 	header         *FXTHeader
-	firstUniBar    *fxtTick
-	lastUniBar     *fxtTick
+	firstUniBar    *FxtTick
+	lastUniBar     *FxtTick
 	deltaTimestamp uint32
 	endTimestamp   uint32
+	timeframe      uint32
 	barCount       int32
 	tickCount      int64
-	chTicks        chan *fxtTick
+	chTicks        chan *FxtTick
 	chClose        chan struct{}
 }
 
@@ -66,9 +45,12 @@ func NewFxtFile(timeframe, spread, model uint32, dest, symbol string) *FxtFile {
 	fxt := &FxtFile{
 		header:         NewHeader(405, symbol, timeframe, spread, model),
 		fpath:          filepath.Join(dest, fn),
-		chTicks:        make(chan *fxtTick, 1024),
+		chTicks:        make(chan *FxtTick, 1024),
 		chClose:        make(chan struct{}, 1),
 		deltaTimestamp: timeframe * 60,
+		timeframe:      timeframe,
+		symbol:         symbol,
+		model:          model,
 	}
 
 	go fxt.worker()
@@ -78,7 +60,7 @@ func NewFxtFile(timeframe, spread, model uint32, dest, symbol string) *FxtFile {
 func (f *FxtFile) worker() error {
 	defer func() {
 		close(f.chClose)
-		log.Info("Saved Bar: %d, Ticks: %d.", f.barCount, f.tickCount)
+		log.Info("M5d Saved Bar: %d, Ticks: %d.", f.timeframe, f.barCount, f.tickCount)
 	}()
 
 	fxt, err := os.OpenFile(f.fpath, os.O_CREATE|os.O_TRUNC, 666)
@@ -88,7 +70,7 @@ func (f *FxtFile) worker() error {
 	}
 
 	defer fxt.Close()
-	bu := bytes.NewBuffer(make([]byte, 4096))
+	bu := bytes.NewBuffer(make([]byte, 0, 4096))
 
 	//
 	// write FXT header
@@ -123,9 +105,9 @@ func (f *FxtFile) worker() error {
 
 func (f *FxtFile) PackTicks(barTimestemp uint32, ticks []*core.TickData) error {
 	for _, tick := range ticks {
-		f.chTicks <- &fxtTick{
-			BarTimestamp:  int32(barTimestemp),
-			TickTimestamp: int32(tick.Timestamp / 1000),
+		f.chTicks <- &FxtTick{
+			BarTimestamp:  uint32(barTimestemp),
+			TickTimestamp: uint32(tick.Timestamp / 1000),
 			Open:          tick.Bid,
 			High:          tick.Bid,
 			Low:           tick.Bid,
@@ -152,9 +134,9 @@ func (f *FxtFile) adjustHeader() error {
 	// first part
 	if _, err := fxt.Seek(216, os.SEEK_SET); err == nil {
 		d := struct {
-			BarCount          int32 // Total bar count
-			BarStartTimestamp int32 // Modelling start date - date of the first tick.
-			BarEndTimestamp   int32 // Modelling end date - date of the last tick.
+			BarCount          int32  // Total bar count
+			BarStartTimestamp uint32 // Modelling start date - date of the first tick.
+			BarEndTimestamp   uint32 // Modelling end date - date of the last tick.
 		}{
 			f.barCount,
 			f.firstUniBar.BarTimestamp,
@@ -177,8 +159,8 @@ func (f *FxtFile) adjustHeader() error {
 	// end part
 	if _, err := fxt.Seek(472, os.SEEK_SET); err == nil {
 		d := struct {
-			BarStartTimestamp int32 // Tester start date - date of the first tick.
-			BarEndTimestamp   int32 // Tester end date - date of the last tick.
+			BarStartTimestamp uint32 // Tester start date - date of the first tick.
+			BarEndTimestamp   uint32 // Tester end date - date of the last tick.
 		}{
 			f.firstUniBar.BarTimestamp,
 			f.lastUniBar.BarTimestamp,

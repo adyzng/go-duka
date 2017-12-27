@@ -112,9 +112,10 @@ func main() {
 	fmt.Printf("    Symbol: %s\n", opt.Symbol)
 	fmt.Printf("    Spread: %d\n", opt.Spread)
 	fmt.Printf("      Mode: %d\n", opt.Mode)
-	fmt.Printf(" Timeframe: %d\n", opt.Timeframe)
+	fmt.Printf(" Timeframe: %s\n", opt.Periods)
 	fmt.Printf("    Format: %s\n", opt.Format)
 	fmt.Printf(" CsvHeader: %t\n", opt.CsvHeader)
+	fmt.Printf(" LocalData: %t\n", opt.Convert)
 	fmt.Printf(" StartDate: %s\n", opt.Start.Format("2006-01-02:15H"))
 	fmt.Printf("   EndDate: %s\n", opt.End.Format("2006-01-02:15H"))
 

@@ -23,21 +23,9 @@ func (t *TickData) UTC() time.Time {
 	return tm.UTC()
 }
 
-// BarData means tick data within one Bar
+// Strings used to format into csv row
 //
-type BarData struct {
-	TickTimestamp uint32  // second
-	BarTimestamp  uint32  // second
-	Open          float64 // OLHCV
-	Low           float64 //
-	High          float64 //
-	Close         float64 //
-	Volume        uint64  //
-}
-
-// ToString used to format into csv row
-//
-func (t *TickData) ToString() []string {
+func (t *TickData) Strings() []string {
 	return []string{
 		t.UTC().Format("2006-01-02 15:04:05.000"),
 		fmt.Sprintf("%.5f", t.Ask),
@@ -45,4 +33,14 @@ func (t *TickData) ToString() []string {
 		fmt.Sprintf("%.2f", t.VolumeAsk),
 		fmt.Sprintf("%.2f", t.VolumeBid),
 	}
+}
+
+func (t *TickData) String() string {
+	return fmt.Sprintf("%s %.5f %.5f %.2f %.2f",
+		t.UTC().Format("2006-01-02 15:04:06.000"),
+		t.Ask,
+		t.Bid,
+		t.VolumeAsk,
+		t.VolumeBid,
+	)
 }

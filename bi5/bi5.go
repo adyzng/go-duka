@@ -38,9 +38,12 @@ type Bi5 struct {
 
 // New create an bi5 saver
 func New(day time.Time, symbol, dest string) *Bi5 {
+	y, m, d := day.Date()
+	dir := fmt.Sprintf("%s/%04d/%02d/%02d", symbol, y, m, d)
+
 	return &Bi5{
+		dest:   filepath.Join(dest, dir),
 		dayH:   day,
-		dest:   dest,
 		symbol: symbol,
 	}
 }
@@ -84,17 +87,13 @@ func (b *Bi5) Save(data []byte) error {
 		return nil
 	}
 
-	y, m, d := b.dayH.Date()
-	subDir := fmt.Sprintf("%s/%04d/%02d/%02d", b.symbol, y, m, d)
-
-	fpath := filepath.Join(b.dest, subDir)
-	if err := os.MkdirAll(fpath, 666); err != nil {
-		log.Error("Create folder (%s) failed: %v.", fpath, err)
+	if err := os.MkdirAll(b.dest, 666); err != nil {
+		log.Error("Create folder (%s) failed: %v.", b.dest, err)
 		return err
 	}
 
 	fname := fmt.Sprintf("%02dh.%s", b.dayH.Hour(), ext)
-	fpath = filepath.Join(fpath, fname)
+	fpath := filepath.Join(b.dest, fname)
 
 	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 666)
 	if err != nil {
@@ -115,8 +114,9 @@ func (b *Bi5) Save(data []byte) error {
 // Load bi5 data from file content
 //
 func (b *Bi5) Load() ([]byte, error) {
-	subpath := fmt.Sprintf("%02dh.%s", b.dayH.Hour(), ext)
-	fpath := filepath.Join(b.dest, subpath)
+
+	fname := fmt.Sprintf("%02dh.%s", b.dayH.Hour(), ext)
+	fpath := filepath.Join(b.dest, fname)
 
 	f, err := os.OpenFile(fpath, os.O_RDONLY, 666)
 	if err != nil {

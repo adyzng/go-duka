@@ -59,7 +59,7 @@ func (h *HST401) worker() error {
 	defer func() {
 		f.Close()
 		close(h.chClose)
-		log.Info("Saved Bar: %d.", h.barCount)
+		log.Info("M%d Saved Bar: %d.", h.timefame, h.barCount)
 	}()
 
 	// write HST header
@@ -69,14 +69,14 @@ func (h *HST401) worker() error {
 		log.Error("Pack HST Header (%v) failed: %v.", h.header, err)
 		return err
 	}
-	if _, err = f.Write(bs); err != nil {
+	if _, err = f.Write(bs[:]); err != nil {
 		log.Error("Write HST Header (%v) failed: %v.", h.header, err)
 		return err
 	}
 
 	for bar := range h.chBars {
 		if bs, err = bar.ToBytes(); err == nil {
-			if _, err = f.Write(bs); err != nil {
+			if _, err = f.Write(bs[:]); err != nil {
 				log.Error("Write BarData(%v) failed: %v.", bar, err)
 			}
 		} else {
@@ -100,7 +100,7 @@ func (h *HST401) PackTicks(barTimestamp uint32, ticks []*core.TickData) error {
 	}
 
 	bar := &BarData{
-		CTM:   uint32(ticks[0].Timestamp / 1000),
+		CTM:   barTimestamp, //uint32(ticks[0].Timestamp / 1000),
 		Open:  ticks[0].Bid,
 		Low:   ticks[0].Bid,
 		High:  ticks[0].Bid,
@@ -111,11 +111,12 @@ func (h *HST401) PackTicks(barTimestamp uint32, ticks []*core.TickData) error {
 		bar.Close = tick.Bid
 		bar.Low = math.Min(tick.Bid, bar.Low)
 		bar.High = math.Max(tick.Bid, bar.High)
-		bar.Volume = bar.Volume + uint64(tick.VolumeAsk+tick.VolumeBid)
+		bar.Volume = bar.Volume + uint64(math.Max(tick.VolumeAsk+tick.VolumeBid, 1))
 	}
 
 	select {
 	case h.chBars <- bar:
+		log.Trace("Bar %d: %v.", h.barCount, bar)
 		h.barCount++
 		break
 		//case <-h.close:
