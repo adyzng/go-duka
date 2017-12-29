@@ -33,26 +33,31 @@ type DukaApp struct {
 // AppOption download options
 //
 type AppOption struct {
-	Start   time.Time
-	End     time.Time
-	Symbol  string
-	Format  string
-	Folder  string
-	Periods string
-	Spread  uint32
-	Mode    uint32
-	//Timeframe uint32
-	Convert   bool
+	Start     time.Time
+	End       time.Time
+	Symbol    string
+	Format    string
+	Folder    string
+	Periods   string
+	Spread    uint32
+	Mode      uint32
+	Local     bool
 	CsvHeader bool
 }
 
 // ParseOption parse input command line
 //
 func ParseOption(args argsList) (*AppOption, error) {
-	var (
-		err error
-		opt AppOption
-	)
+	var err error
+	opt := AppOption{
+		CsvHeader: args.Header,
+		Local:     args.Local,
+		Format:    args.Format,
+		Symbol:    strings.ToUpper(args.Symbol),
+		Spread:    uint32(args.Spread),
+		Mode:      uint32(args.Model),
+	}
+
 	if args.Symbol == "" {
 		err = fmt.Errorf("Invalid symbol parameter")
 		return nil, err
@@ -101,13 +106,6 @@ func ParseOption(args argsList) (*AppOption, error) {
 		}
 		opt.Periods = args.Period
 	}
-
-	opt.Symbol = strings.ToUpper(args.Symbol)
-	opt.CsvHeader = args.Header
-	opt.Convert = args.Convert
-	opt.Format = args.Format
-	opt.Spread = uint32(args.Spread)
-	opt.Mode = uint32(args.Model)
 
 	return &opt, nil
 }
@@ -240,7 +238,7 @@ func (app *DukaApp) fetchDay(day time.Time) <-chan *hReader {
 					err  error
 					data []byte
 				)
-				if opt.Convert {
+				if opt.Local {
 					str = "Load Bi5"
 					data, err = bi5File.Load()
 				} else {

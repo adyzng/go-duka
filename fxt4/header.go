@@ -89,18 +89,18 @@ type FXTHeader struct {
 	_                 [240]byte //  		488      240     unused
 }
 
-// FxtTick
+// FxtTick ...
 //
 type FxtTick struct {
-	BarTimestamp  uint32
-	_             uint32
-	Open          float64
-	High          float64
-	Low           float64
-	Close         float64
-	Volume        uint64
-	TickTimestamp uint32
-	LaunchExpert  uint32
+	BarTimestamp  uint32  //   0  4   bar timestamp align with timeframe, unit seconds
+	_             uint32  //   4  4   for padding
+	Open          float64 //   8  8
+	High          float64 //  16  8
+	Low           float64 //  24  8
+	Close         float64 //  32  8
+	Volume        uint64  //  40  8
+	TickTimestamp uint32  //  48  4   tick data timestamp in seconds
+	LaunchExpert  uint32  //  52  4
 }
 
 func (t FxtTick) String() string {
@@ -175,9 +175,4 @@ func NewHeader(version uint32, symbol string, timeframe, spread, model uint32) *
 	misc.ToFixBytes(h.MarginCurrency[:], symbol[3:])
 
 	return h
-}
-
-// AdjustHeader after all ticks writed to file
-func (h *FXTHeader) AdjustHeader() {
-
 }

@@ -39,7 +39,7 @@ func init() {
 type argsList struct {
 	Verbose bool
 	Header  bool
-	Convert bool
+	Local   bool
 	Spread  uint
 	Model   uint
 	Symbol  string
@@ -82,9 +82,9 @@ func main() {
 	flag.BoolVar(&args.Header,
 		"header", false,
 		"save csv with header")
-	flag.BoolVar(&args.Convert,
-		"convert", false,
-		"convert to given format with local data instead of download from dukascopy")
+	flag.BoolVar(&args.Local,
+		"local", false,
+		"convert to given format with local data instead of downloading from dukascopy")
 	flag.BoolVar(&args.Verbose,
 		"verbose", false,
 		"verbose output trace log")
@@ -115,7 +115,7 @@ func main() {
 	fmt.Printf(" Timeframe: %s\n", opt.Periods)
 	fmt.Printf("    Format: %s\n", opt.Format)
 	fmt.Printf(" CsvHeader: %t\n", opt.CsvHeader)
-	fmt.Printf(" LocalData: %t\n", opt.Convert)
+	fmt.Printf(" LocalData: %t\n", opt.Local)
 	fmt.Printf(" StartDate: %s\n", opt.Start.Format("2006-01-02:15H"))
 	fmt.Printf("   EndDate: %s\n", opt.End.Format("2006-01-02:15H"))
 
