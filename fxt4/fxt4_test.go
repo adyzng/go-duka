@@ -12,13 +12,17 @@ import (
 )
 
 func TestFxtFile(t *testing.T) {
+	fn := 1e-5 + 0.123
+	fmt.Println(fn)
+
 	fxt := NewFxtFile(1, 20, 0, "D:\\Data", "EURUSD")
 	fxt.PackTicks(0, []*core.TickData{&core.TickData{}})
 }
 
 func TestHeader(t *testing.T) {
-	//fname := `F:\tester-ok\EURUSD1_0.fxt`
-	fname := `E:\test\EURUSD5_0.fxt`
+	fname := `F:\201710\EURUSD1_0.fxt`
+	//fname := `F:\201710\EURUSD1.fxt`
+	//fname := `C:\Users\huan\AppData\Roaming\MetaQuotes\Terminal\1DAFD9A7C67DC84FE37EAA1FC1E5CF75\tester\history\EURUSD1_0.fxt`
 
 	fh, err := os.OpenFile(fname, os.O_RDONLY, 666)
 	if err != nil {
@@ -37,6 +41,8 @@ func TestHeader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode fxt header failed: %v.\n", err)
 	}
+
+	fmt.Printf("Header:\n%+v\n", h)
 
 	tickBs := make([]byte, tickSize)
 	for {
@@ -57,7 +63,7 @@ func TestHeader(t *testing.T) {
 			break
 		}
 
-		fmt.Println(tick)
+		fmt.Println(&tick)
+		//break
 	}
-	fmt.Printf("Header:\n%+v\n", h)
 }

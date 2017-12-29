@@ -99,11 +99,16 @@ func (tf *Timeframe) worker() error {
 		tickSeconds = uint32(tick.Timestamp / 1000)
 		tickBarTime = tickSeconds - tickSeconds%tf.deltaTimestamp
 
+		if tf.startTimestamp == 0 {
+			tf.startTimestamp = tickBarTime
+			tf.endTimestamp = tickBarTime + tf.deltaTimestamp
+		}
+
 		//Determines the end of the current bar.
 		if tickSeconds >= tf.endTimestamp {
 			// output one bar data
 			if len(barTicks) > 0 {
-				tf.out.PackTicks(tickBarTime, barTicks[:])
+				tf.out.PackTicks(tf.startTimestamp, barTicks[:])
 				barTicks = barTicks[:0]
 			}
 
@@ -121,7 +126,7 @@ func (tf *Timeframe) worker() error {
 	}
 
 	if len(barTicks) > 0 {
-		tf.out.PackTicks(tickBarTime, barTicks[:])
+		tf.out.PackTicks(tf.startTimestamp, barTicks[:])
 	}
 
 	return nil

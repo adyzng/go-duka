@@ -32,7 +32,7 @@ type FXTHeader struct {
 	BaseCurrency [12]byte // 				240       12     base currency (szchar)                     = StringLeft(symbol, 3)
 	Spread       uint32   // 				252        4     spread in points: 0=zero spread            = MarketInfo(MODE_SPREAD)
 	Digits       uint32   // 				256        4     digits                                     = MarketInfo(MODE_DIGITS)
-	Reserved2    [4]byte  // 				260        4     (alignment to the next double)
+	_            [4]byte  // 				260        4     (alignment to the next double)
 	PointSize    float64  // 				264        8     resolution, ie. 0.0000'1                   = MarketInfo(MODE_POINT)
 	MinLotsize   uint32   // 				272        4     min lot size in centi lots (hundredths)    = MarketInfo(MODE_MINLOT)  * 100
 	MaxLotsize   uint32   // 				276        4     max lot size in centi lots (hundredths)    = MarketInfo(MODE_MAXLOT)  * 100
@@ -103,18 +103,16 @@ type FxtTick struct {
 	LaunchExpert  uint32  //  52  4
 }
 
-func (t FxtTick) String() string {
-	bt := time.Unix(int64(t.BarTimestamp), 0).UTC()
-	tt := time.Unix(int64(t.TickTimestamp), 0).UTC()
-	return fmt.Sprintf("%s %s %f %f %f %f %d",
-		bt.Format("2006-01-02 15:04:05"),
-		tt.Format("2006-01-02 15:04:05"),
-		t.Open,
-		t.High,
-		t.Low,
-		t.Close,
-		t.Volume,
-	)
+type FxtTick_ struct {
+	BarTimestamp  uint32  //   0  4
+	Open          float64 //   4  8
+	High          float64 //  12  8
+	Low           float64 //  20  8
+	Close         float64 //  28  8
+	Volume        uint64  //  36  8
+	RealSpread    uint32  //  44  4
+	TickTimestamp uint32  //  48  4
+	LaunchExpert  uint32  //  52  4
 }
 
 // NewHeader return an predefined FXT header
@@ -136,16 +134,16 @@ func NewHeader(version uint32, symbol string, timeframe, spread, model uint32) *
 		PendingsGTC: 1,
 
 		// Profit Calculation parameters.
-		ContractSize:          100000.0,
-		TickValue:             0.0,
-		TickSize:              0.0,
+		ContractSize:          100000,
+		TickValue:             0,
+		TickSize:              0,
 		ProfitCalculationMode: 0,
 
 		// Swap calculation
 		SwapEnabled:         0,
 		SwapCalculationMode: 0,
-		SwapLongValue:       0.0,
-		SwapShortValue:      0.0,
+		SwapLongValue:       0,
+		SwapShortValue:      0,
 		TripleRolloverDay:   3,
 
 		// Margin calculation.
@@ -175,4 +173,36 @@ func NewHeader(version uint32, symbol string, timeframe, spread, model uint32) *
 	misc.ToFixBytes(h.MarginCurrency[:], symbol[3:])
 
 	return h
+}
+
+func (h *FXTHeader) ToBytes() ([]byte, error) {
+	bs, err := misc.PackLittleEndian(headerSize, h)
+	if err != nil {
+		log.Error("Failed to convert FXT header to bytes array. Error %v.", err)
+		return make([]byte, 0), err
+	}
+	return bs, err
+}
+
+func (t *FxtTick) ToBytes() ([]byte, error) {
+	bs, err := misc.PackLittleEndian(tickSize, t)
+	if err != nil {
+		log.Error("Failed to convert FXT tick to bytes array. Error %v.", err)
+		return make([]byte, 0), err
+	}
+	return bs, err
+}
+
+func (t *FxtTick) String() string {
+	bt := time.Unix(int64(t.BarTimestamp), 0).UTC()
+	tt := time.Unix(int64(t.TickTimestamp), 0).UTC()
+	return fmt.Sprintf("%s %s %f %f %f %f %d",
+		bt.Format("2006-01-02 15:04:05"),
+		tt.Format("2006-01-02 15:04:05"),
+		t.Open,
+		t.High,
+		t.Low,
+		t.Close,
+		t.Volume,
+	)
 }

@@ -29,9 +29,10 @@ func TestHSTHeader(t *testing.T) {
 }
 
 func TestLoadHst(t *testing.T) {
-	//fname := "F:\\00\\EURUSD1.hst"
-	fcsv := "F:\\00\\EURUSD30-correct.csv"
-	fname := "C:\\Users\\huan\\AppData\\Roaming\\MetaQuotes\\Terminal\\1DAFD9A7C67DC84FE37EAA1FC1E5CF75\\history\\ICMarkets-Demo01\\00\\EURUSD30.hst"
+
+	fcsv := `F:\201710\EURUSD1.hst.csv`
+	fname := `F:\201710\EURUSD1.hst`
+	//fname := "C:\\Users\\huan\\AppData\\Roaming\\MetaQuotes\\Terminal\\1DAFD9A7C67DC84FE37EAA1FC1E5CF75\\history\\ICMarkets-Demo01\\00\\EURUSD30.hst"
 
 	f, err := os.OpenFile(fname, os.O_RDONLY, 666)
 	if err != nil {

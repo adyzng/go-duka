@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -41,7 +42,7 @@ type FxtFile struct {
 
 // NewFxtFile create an new fxt file instance
 func NewFxtFile(timeframe, spread, model uint32, dest, symbol string) *FxtFile {
-	fn := fmt.Sprintf("%s%02d_%d.fxt", symbol, timeframe, model)
+	fn := fmt.Sprintf("%s%d_%d.fxt", symbol, timeframe, model)
 	fxt := &FxtFile{
 		header:         NewHeader(405, symbol, timeframe, spread, model),
 		fpath:          filepath.Join(dest, fn),
@@ -60,7 +61,7 @@ func NewFxtFile(timeframe, spread, model uint32, dest, symbol string) *FxtFile {
 func (f *FxtFile) worker() error {
 	defer func() {
 		close(f.chClose)
-		log.Info("M5d Saved Bar: %d, Ticks: %d.", f.timeframe, f.barCount, f.tickCount)
+		log.Info("M%d Saved Bar: %d, Ticks: %d.", f.timeframe, f.barCount, f.tickCount)
 	}()
 
 	fxt, err := os.OpenFile(f.fpath, os.O_CREATE|os.O_TRUNC, 666)
@@ -70,17 +71,27 @@ func (f *FxtFile) worker() error {
 	}
 
 	defer fxt.Close()
-	bu := bytes.NewBuffer(make([]byte, 0, 4096))
+	bu := bytes.NewBuffer(make([]byte, 0, headerSize))
 
 	//
-	// write FXT header
+	// convert FXT header
 	//
 	if err = binary.Write(bu, binary.LittleEndian, f.header); err != nil {
+		log.Error("Convert FXT header failed: %v.", err)
+		return err
+	}
+	// write FXT file
+	if _, err := fxt.Write(bu.Bytes()); err != nil {
 		log.Error("Write FXT header failed: %v.", err)
 		return err
 	}
 
 	for tick := range f.chTicks {
+
+		if tick.BarTimestamp > tick.TickTimestamp {
+			log.Fatal("Tick(%v)", tick)
+		}
+
 		bu.Reset()
 		//
 		//  write tick data
@@ -89,31 +100,46 @@ func (f *FxtFile) worker() error {
 			log.Error("Pack tick failed: %v.", err)
 			break
 		}
+		if _, err = fxt.Write(bu.Bytes()); err != nil {
+			log.Error("Write fxt tick (%x) failed: %v.", bu.Bytes(), err)
+			break
+		}
 
 		if f.firstUniBar == nil {
 			f.firstUniBar = tick
 		}
 		f.lastUniBar = tick
-
-		if _, err = fxt.Write(bu.Bytes()); err != nil {
-			log.Error("Write fxt tick (%x) failed: %v.", bu.Bytes(), err)
-			break
-		}
 	}
 	return err
 }
 
 func (f *FxtFile) PackTicks(barTimestemp uint32, ticks []*core.TickData) error {
+
+	if len(ticks) == 0 {
+		return nil
+	}
+
+	var (
+		op = ticks[0].Bid
+		hi = ticks[0].Bid
+		lo = ticks[0].Bid
+		vo = math.Max(ticks[0].VolumeBid, 1)
+	)
+
 	for _, tick := range ticks {
-		f.chTicks <- &FxtTick{
+		ft := &FxtTick{
 			BarTimestamp:  uint32(barTimestemp),
 			TickTimestamp: uint32(tick.Timestamp / 1000),
-			Open:          tick.Bid,
-			High:          tick.Bid,
-			Low:           tick.Bid,
+			Open:          op,
+			High:          math.Max(tick.Bid, hi),
+			Low:           math.Min(tick.Bid, lo),
 			Close:         tick.Bid,
-			Volume:        uint64(tick.VolumeBid),
+			Volume:        uint64(vo),
+			//RealSpread:    uint32(tick.Ask - tick.Bid/f.header.PointSize),
+			//LaunchExpert:  3,
 		}
+		vo = vo + tick.VolumeBid
+		f.chTicks <- ft
 		f.tickCount++
 	}
 	if f.endTimestamp != barTimestemp {
@@ -124,6 +150,10 @@ func (f *FxtFile) PackTicks(barTimestemp uint32, ticks []*core.TickData) error {
 }
 
 func (f *FxtFile) adjustHeader() error {
+	if f.barCount == 0 {
+		return nil
+	}
+
 	fxt, err := os.OpenFile(f.fpath, os.O_RDWR, 666)
 	if err != nil {
 		log.Fatal("Open file %s failed: %v.", f.fpath, err)

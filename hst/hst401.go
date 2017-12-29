@@ -116,7 +116,7 @@ func (h *HST401) PackTicks(barTimestamp uint32, ticks []*core.TickData) error {
 
 	select {
 	case h.chBars <- bar:
-		log.Trace("Bar %d: %v.", h.barCount, bar)
+		//log.Trace("Bar %d: %v.", h.barCount, bar)
 		h.barCount++
 		break
 		//case <-h.close:
