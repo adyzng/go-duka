@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"path/filepath"
 	"time"
 
+	"github.com/adyzng/go-duka/fxt4"
 	"github.com/go-clog/clog"
 )
 
@@ -42,6 +44,7 @@ type argsList struct {
 	Local   bool
 	Spread  uint
 	Model   uint
+	Dump    string
 	Symbol  string
 	Output  string
 	Format  string
@@ -54,7 +57,9 @@ func main() {
 	args := argsList{}
 	start := time.Now().Format("2006-01-02")
 	end := time.Now().Add(24 * time.Hour).Format("2006-01-02")
-
+	flag.StringVar(&args.Dump,
+		"dump", "",
+		"dump given file format")
 	flag.StringVar(&args.Period,
 		"timeframe", "M1",
 		"timeframe values: M1, M5, M15, M30, H1, H4, D1, W1, MN")
@@ -100,6 +105,15 @@ func main() {
 			Level:      clog.INFO,
 			BufferSize: 100,
 		})
+	}
+
+	if args.Dump != "" {
+		if filepath.Ext(args.Dump) == ".fxt" {
+			fxt4.DumpFile(args.Dump, args.Header, nil)
+		} else {
+			fmt.Println("invalid file ext", filepath.Ext(args.Dump))
+		}
+		return
 	}
 
 	opt, err := ParseOption(args)

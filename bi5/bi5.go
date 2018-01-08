@@ -121,8 +121,8 @@ func (b *Bi5) Load() ([]byte, error) {
 	f, err := os.OpenFile(fpath, os.O_RDONLY, 666)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Trace("Bi5 (%s) not exist.", fpath)
-			return emptBytes, nil
+			log.Trace("Bi5 (%s) not exist, try to download from dukascopy", fpath)
+			return b.Download()
 		}
 		log.Error("Open file %s failed: %v.", fpath, err)
 		return nil, err
@@ -145,17 +145,17 @@ func (b *Bi5) Download() ([]byte, error) {
 	link := fmt.Sprintf(core.DukaTmplURL, b.symbol, year, month-1, day, b.dayH.Hour())
 
 	if data, err = httpDownld.Download(link); err != nil {
-		log.Error("Download %s: %s failed: %v.", b.symbol, b.dayH.Format("2006-01-02:15H"), err)
+		log.Error("%s %s download failed: %v.", b.symbol, b.dayH.Format("2006-01-02:15H"), err)
 		return emptBytes, err
 	}
 
 	if len(data) > 0 {
-		log.Trace("Downloaded %s: %s.", b.symbol, b.dayH.Format("2006-01-02:15H"))
+		log.Trace("%s %s downloaded.", b.symbol, b.dayH.Format("2006-01-02:15H"))
 		b.save = true
 		return data, err
 	}
 
-	log.Warn("Empty %s: %s.", b.symbol, b.dayH.Format("2006-01-02:15H"))
+	log.Warn("%s %s empty.", b.symbol, b.dayH.Format("2006-01-02:15H"))
 	return emptBytes, nil
 }
 
@@ -163,7 +163,7 @@ func (b *Bi5) Download() ([]byte, error) {
 // the valid data array should be at size `TICK_BYTES`.
 //
 //  struck.unpack(!IIIff)
-//  date, ask / point, bid / point, round(volume_ask * 1000000), round(volume_bid * 1000000)
+//  date, ask / point, bid / point, round(volume_ask * 100000), round(volume_bid * 100000)
 //
 func (b *Bi5) decodeTickData(data []byte, symbol string, timeH time.Time) (*core.TickData, error) {
 	raw := struct {

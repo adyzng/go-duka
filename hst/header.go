@@ -29,8 +29,7 @@ type Header struct {
 // BarData wrap the bar data inside hst (60 Bytes)
 //
 type BarData struct {
-	CTM        uint32  //   0   4   current time in seconds
-	_          uint32  //   4   4   for padding only
+	CTM        uint64  //   0   8   current time in seconds, MQL4 datetime
 	Open       float64 //   8   8   OHLCV
 	High       float64 //  24   8   H
 	Low        float64 //  16   8   L

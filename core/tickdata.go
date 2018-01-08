@@ -12,8 +12,8 @@ type TickData struct {
 	Timestamp int64   // 时间戳(ms)
 	Ask       float64 // 卖价
 	Bid       float64 // 买价
-	VolumeAsk float64 // 单位：MIO(百万)
-	VolumeBid float64 // 单位：MIO(百万)
+	VolumeAsk float64 // 单位：通常是按10万美元为一手，最小0.01手
+	VolumeBid float64 // 单位：...
 }
 
 // UTC convert timestamp to UTC time

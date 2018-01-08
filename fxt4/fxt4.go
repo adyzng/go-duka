@@ -1,9 +1,11 @@
 package fxt4
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -88,7 +90,7 @@ func (f *FxtFile) worker() error {
 
 	for tick := range f.chTicks {
 
-		if tick.BarTimestamp > tick.TickTimestamp {
+		if tick.BarTimestamp > uint64(tick.TickTimestamp) {
 			log.Fatal("Tick(%v)", tick)
 		}
 
@@ -128,15 +130,15 @@ func (f *FxtFile) PackTicks(barTimestemp uint32, ticks []*core.TickData) error {
 
 	for _, tick := range ticks {
 		ft := &FxtTick{
-			BarTimestamp:  uint32(barTimestemp),
+			BarTimestamp:  uint64(barTimestemp),
 			TickTimestamp: uint32(tick.Timestamp / 1000),
 			Open:          op,
 			High:          math.Max(tick.Bid, hi),
 			Low:           math.Min(tick.Bid, lo),
 			Close:         tick.Bid,
-			Volume:        uint64(vo),
+			Volume:        uint64(math.Max(tick.VolumeBid*100, 1)),
+			LaunchExpert:  3,
 			//RealSpread:    uint32(tick.Ask - tick.Bid/f.header.PointSize),
-			//LaunchExpert:  3,
 		}
 		vo = vo + tick.VolumeBid
 		f.chTicks <- ft
@@ -169,8 +171,8 @@ func (f *FxtFile) adjustHeader() error {
 			BarEndTimestamp   uint32 // Modelling end date - date of the last tick.
 		}{
 			f.barCount,
-			f.firstUniBar.BarTimestamp,
-			f.lastUniBar.BarTimestamp,
+			uint32(f.firstUniBar.BarTimestamp),
+			uint32(f.lastUniBar.BarTimestamp),
 		}
 
 		bu := new(bytes.Buffer)
@@ -192,8 +194,8 @@ func (f *FxtFile) adjustHeader() error {
 			BarStartTimestamp uint32 // Tester start date - date of the first tick.
 			BarEndTimestamp   uint32 // Tester end date - date of the last tick.
 		}{
-			f.firstUniBar.BarTimestamp,
-			f.lastUniBar.BarTimestamp,
+			uint32(f.firstUniBar.BarTimestamp),
+			uint32(f.lastUniBar.BarTimestamp),
 		}
 		bu := new(bytes.Buffer)
 		if err = binary.Write(bu, binary.LittleEndian, &d); err == nil {
@@ -215,4 +217,63 @@ func (f *FxtFile) Finish() error {
 	close(f.chTicks)
 	<-f.chClose
 	return f.adjustHeader()
+}
+
+// DumpFile dump fxt file into txt format
+//
+func DumpFile(fname string, header bool, w io.Writer) {
+	fh, err := os.OpenFile(fname, os.O_RDONLY, 666)
+	if err != nil {
+		log.Error("Open fxt file failed: %v.", err)
+		return
+	}
+	defer fh.Close()
+
+	bs := make([]byte, headerSize)
+	n, err := fh.Read(bs[:])
+	if err != nil || n != headerSize {
+		log.Error("Read fxt header failed: %v.", err)
+		return
+	}
+
+	var h FXTHeader
+	err = binary.Read(bytes.NewBuffer(bs[:]), binary.LittleEndian, &h)
+	if err != nil {
+		log.Error("Decode fxt header failed: %v.", err)
+		return
+	}
+
+	if w == nil {
+		w = os.Stdout
+	}
+	bw := bufio.NewWriter(w)
+	bw.WriteString(fmt.Sprintf("Header: %+v\n", h))
+	defer bw.Flush()
+
+	if header {
+		// only header
+		return
+	}
+
+	tickBs := make([]byte, tickSize)
+	for {
+		n, err = fh.Read(tickBs[:tickSize])
+		if err == io.EOF {
+			break
+		}
+
+		if n != tickSize || err != nil {
+			log.Error("Read tick data failed: %v.", err)
+			break
+		}
+
+		var tick FxtTick
+		err = binary.Read(bytes.NewBuffer(tickBs[:]), binary.LittleEndian, &tick)
+		if err != nil {
+			log.Error("Decode tick data failed: %v.", err)
+			break
+		}
+
+		bw.WriteString(fmt.Sprintf("%s\n", &tick))
+	}
 }

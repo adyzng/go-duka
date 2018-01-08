@@ -100,19 +100,21 @@ func (h *HST401) PackTicks(barTimestamp uint32, ticks []*core.TickData) error {
 	}
 
 	bar := &BarData{
-		CTM:   barTimestamp, //uint32(ticks[0].Timestamp / 1000),
+		CTM:   uint64(barTimestamp), //uint32(ticks[0].Timestamp / 1000),
 		Open:  ticks[0].Bid,
 		Low:   ticks[0].Bid,
 		High:  ticks[0].Bid,
 		Close: ticks[0].Bid,
 	}
 
+	var totalVol float64
 	for _, tick := range ticks {
 		bar.Close = tick.Bid
 		bar.Low = math.Min(tick.Bid, bar.Low)
 		bar.High = math.Max(tick.Bid, bar.High)
-		bar.Volume = bar.Volume + uint64(math.Max(tick.VolumeAsk+tick.VolumeBid, 1))
+		totalVol = totalVol + tick.VolumeBid /*+tick.VolumeAsk*/
 	}
+	bar.Volume = uint64(math.Max(totalVol, 1))
 
 	select {
 	case h.chBars <- bar:

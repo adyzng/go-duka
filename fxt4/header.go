@@ -12,8 +12,17 @@ var (
 	tickSize   = 56
 )
 
-// FXTHeader ...
+// FXTHeader History Files in FXT Format
+// https://www.metatrader4.com/en/trading-platform/help/autotrading/tester/tester_fxt
 //
+// Documentation on the format can be found in terminal Help (Client terminal - Auto Trading - Strategy Testing - History Files FXT).
+// However the obtained data shows that the data does not match the declared format.
+// In the eye catches the fact that the work is carried out over time in both formats: the new and the old MQL4.
+// So, members of fromdate and todate structure TestHistoryHeader , and ctm structure TestHistory use the old (4 hbaytny) date / time format, but a member of otm structure TestHistory written in the new (8-byte) date / time format.
+// It is unclear whether the correct type of selected members unknown.
+// The FXT as teak prices recorded only Bid, but its spread is written in the Volume field.
+// By breaking MT4 is obtained to ensure that the MT4-tester figured on each tick Ask, how the Bid + the Volume (that's the trick).
+// Source: https://forum.mql4.com/ru/64199/page3
 type FXTHeader struct {
 	//Header layout--------------------- offset --- size --- description ------------------------------------------------------------------------
 	Version      uint32    //  				  0        4     header version:
@@ -92,27 +101,14 @@ type FXTHeader struct {
 // FxtTick ...
 //
 type FxtTick struct {
-	BarTimestamp  uint32  //   0  4   bar timestamp align with timeframe, unit seconds
-	_             uint32  //   4  4   for padding
+	BarTimestamp  uint64  //   0  8   Bar datetime, align with timeframe, unit seconds
 	Open          float64 //   8  8
 	High          float64 //  16  8
 	Low           float64 //  24  8
 	Close         float64 //  32  8
-	Volume        uint64  //  40  8
+	Volume        uint64  //  40  8   Volume (documentation says it's a double, though it's stored as a long int)
 	TickTimestamp uint32  //  48  4   tick data timestamp in seconds
-	LaunchExpert  uint32  //  52  4
-}
-
-type FxtTick_ struct {
-	BarTimestamp  uint32  //   0  4
-	Open          float64 //   4  8
-	High          float64 //  12  8
-	Low           float64 //  20  8
-	Close         float64 //  28  8
-	Volume        uint64  //  36  8
-	RealSpread    uint32  //  44  4
-	TickTimestamp uint32  //  48  4
-	LaunchExpert  uint32  //  52  4
+	LaunchExpert  uint32  //  52  4   Flag to launch an expert (0 - bar will be modified, but the expert will not be launched).
 }
 
 // NewHeader return an predefined FXT header
@@ -170,7 +166,7 @@ func NewHeader(version uint32, symbol string, timeframe, spread, model uint32) *
 	misc.ToFixBytes(h.ServerName[:], "Beijing MoreU Tech.")
 	misc.ToFixBytes(h.Symbol[:], symbol)
 	misc.ToFixBytes(h.BaseCurrency[:], symbol[:3])
-	misc.ToFixBytes(h.MarginCurrency[:], symbol[3:])
+	misc.ToFixBytes(h.MarginCurrency[:], symbol[:3])
 
 	return h
 }
@@ -196,7 +192,7 @@ func (t *FxtTick) ToBytes() ([]byte, error) {
 func (t *FxtTick) String() string {
 	bt := time.Unix(int64(t.BarTimestamp), 0).UTC()
 	tt := time.Unix(int64(t.TickTimestamp), 0).UTC()
-	return fmt.Sprintf("%s %s %f %f %f %f %d",
+	return fmt.Sprintf("%s %s %f %f %f %f %v",
 		bt.Format("2006-01-02 15:04:05"),
 		tt.Format("2006-01-02 15:04:05"),
 		t.Open,

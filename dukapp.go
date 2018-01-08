@@ -195,7 +195,7 @@ func (app *DukaApp) Execute() error {
 			break
 		}
 
-		log.Info("Finished %s %s.", opt.Symbol, day.Format("2006-01-02"))
+		log.Info("%s %s finished.", opt.Symbol, day.Format("2006-01-02"))
 	}
 
 	//
@@ -261,7 +261,7 @@ func (app *DukaApp) fetchDay(day time.Time) <-chan *hReader {
 		}
 
 		wg.Wait()
-		log.Trace("Bi5 %s %s complete.", opt.Symbol, day.Format("2006-01-02"))
+		log.Trace("%s %s loaded.", opt.Symbol, day.Format("2006-01-02"))
 	}()
 
 	return ch
@@ -332,6 +332,6 @@ func (app *DukaApp) saveData(day time.Time, chData <-chan *hReader) error {
 		app.sortAndOutput(day, dayTicks[:])
 	}
 
-	log.Trace("%s %s convert complete.", opt.Symbol, day.Format("2006-01-02"))
+	log.Trace("%s %s converted.", opt.Symbol, day.Format("2006-01-02"))
 	return err
 }
