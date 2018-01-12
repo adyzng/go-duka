@@ -1,10 +1,10 @@
 *.db
 *.log
-symbols.json
 log/
 custom/
 data/
 testdata/
+vendor/
 .vscode/
 .vendor/
 .idea/
